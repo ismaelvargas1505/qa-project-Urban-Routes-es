@@ -4,6 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
+import time
 
 
 
@@ -47,20 +48,24 @@ class UrbanRoutesPage:
     click_submit_button = (By.XPATH, "//*[@id='root']/div/div[1]/div[2]/div[1]/form/div[2]/button")
     phone_confirm = (By.XPATH, "//*[@id='root']/div/div[1]/div[2]/div[2]/form/div[2]/button[1]")
     open_card = (By.XPATH, "//*[@id='root']/div/div[3]/div[3]/div[2]/div[2]/div[2]")
-    add_card_button = (By.ID, 'link')
+    add_card_button = (By.XPATH, "//*[@id='root']/div/div[2]/div[2]/div[1]/div[2]/div[3]/div[2]")
     card_number_field = (By.ID, 'number')
-    card_code_field = (By.ID, 'code')
-
+    card_code_field = (By.XPATH,"/html/body/div/div/div[2]/div[2]/div[2]/form/div[1]/div[2]/div[2]/div[2]/input")
+    close_card_field= (By.XPATH, "/html/body/div/div/div[2]/div[2]/div[1]/button")
+    submit_card_button = (By.XPATH, "//*[@id='root']/div/div[2]/div[2]/div[2]/form/div[3]/button[1]")
     message_field = (By.ID, 'comment')
 
-    blanket_and_napkins_checkbox = (By.ID, 'blanket_and_napkins')
+    blanket_and_napkins_checkbox = (By.XPATH, "//*[@id='root']/div/div[3]/div[3]/div[2]/div[2]/div[4]/div[2]/div[1]/div/div[2]/div/span")
 
     ice_cream_plus = (By.XPATH, "//*[@id='root']/div/div[3]/div[3]/div[2]/div[2]/div[4]/div[2]/div[3]/div/div[2]/div[1]/div/div[2]/div/div[3]")
 
     order_taxi_button = (By.XPATH, '//*[@id="root"]/div/div[3]/div[3]/div[1]/div[3]/div[1]/button')
 
-    searching_modal = (By.CLASS_NAME, 'searching')
-    driver_info_modal = (By.CLASS_NAME, 'driver-info')
+    submit_order = (By.XPATH,"//*[@id='root']/div/div[3]/div[4]/button/span[1]")
+
+    searching_modal = (By.CLASS_NAME, 'order-body')
+    driver_info_modal = (By.XPATH, '//*[@id="root"]/div/div[5]/div[2]/div[2]/div[1]/div[3]/button/img')
+    display_drive_info = (By.XPATH, "/html/body/div/div/div[5]/div[2]/div[2]/div[1]/div[3]/button")
 
     def __init__(self, driver):
         self.driver = driver
@@ -99,16 +104,22 @@ class UrbanRoutesPage:
         self.driver.find_element(*self.phone_confirm).click()
 
 
-    def add_credit_card(self, card_number, card_code):
+    def add_credit_card(self, card_number):
         self.wait.until(expected_conditions.element_to_be_clickable(self.open_card)).click()
         self.driver.find_element(*self.add_card_button).click()
         self.driver.find_element(*self.card_number_field).send_keys(card_number)
-        cvv = self.driver.find_element(*self.card_code_field)
-        cvv.send_keys(card_code)
-        cvv.send_keys(Keys.TAB)
+
+    def add_credit_card_code(self, card_code):
+       cvv=self.wait.until(expected_conditions.visibility_of_element_located(self.card_code_field))
+       cvv.send_keys(card_code)
+       cvv.send_keys(Keys.TAB)
+       self.wait.until(expected_conditions.element_to_be_clickable(self.submit_card_button)).click()
+       time.sleep(2)
+       self.driver.find_element(*self.close_card_field).click()
+
 
     def write_message(self, message_for_driver):
-        self.driver.find_element(*self.message_field).send_keys(message_for_driver)
+        self.wait.until(expected_conditions.visibility_of_element_located(self.message_field)).send_keys(message_for_driver)
 
     def request_blanket_and_napkins(self):
         self.driver.find_element(*self.blanket_and_napkins_checkbox).click()
@@ -120,11 +131,19 @@ class UrbanRoutesPage:
 
     def order_taxi(self):
         self.wait.until(expected_conditions.element_to_be_clickable(self.order_taxi_button)).click()
+
+    def submit(self):
+        self.wait.until(expected_conditions.visibility_of_element_located(self.submit_order)).click()
+
     def wait_searching_modal(self):
         self.wait.until(expected_conditions.visibility_of_element_located(self.searching_modal))
+        time.sleep(3)
 
     def wait_driver_info(self):
         self.wait.until(expected_conditions.visibility_of_element_located(self.driver_info_modal))
+        self.driver.find_element(*self.display_drive_info).click()
+        time.sleep(1)
+
 
 
 
@@ -137,10 +156,11 @@ class TestUrbanRoutes:
     @classmethod
     def setup_class(cls):
         # no lo modifiques, ya que necesitamos un registro adicional habilitado para recuperar el código de confirmación del teléfono
-        from selenium.webdriver import EdgeOptions
-        options = EdgeOptions()
+        from selenium.webdriver import ChromeOptions
+        options = ChromeOptions()
         options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
-        cls.driver = webdriver.Edge(options=options)
+        cls.driver = webdriver.Chrome(options=options)
+
 
     def test_set_route(self):
         self.driver.get(data.urban_routes_url)
@@ -154,11 +174,12 @@ class TestUrbanRoutes:
         routes_page.select_comfort()
         routes_page.fill_phone_number(data.phone_number)
         routes_page.fill_phone_code()
-        routes_page.add_credit_card(data.card_number, data.card_code)
+        routes_page.add_credit_card(data.card_number)
+        routes_page.add_credit_card_code(data.card_code)
         routes_page.write_message(data.message_for_driver)
         routes_page.request_blanket_and_napkins()
         routes_page.order_ice_cream(2)
-        routes_page.order_taxi()
+        routes_page.submit()
         routes_page.wait_searching_modal()
         routes_page.wait_driver_info()
 
