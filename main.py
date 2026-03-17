@@ -5,35 +5,10 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 import time
+import helpers as helpers
 
 
 
-# no modificar
-def retrieve_phone_code(driver) -> str:
-    """Este código devuelve un número de confirmación de teléfono y lo devuelve como un string.
-    Utilízalo cuando la aplicación espere el código de confirmación para pasarlo a tus pruebas.
-    El código de confirmación del teléfono solo se puede obtener después de haberlo solicitado en la aplicación."""
-
-    import json
-    import time
-    from selenium.common import WebDriverException
-    code = None
-    for i in range(10):
-        try:
-            logs = [log["message"] for log in driver.get_log('performance') if log.get("message")
-                    and 'api/v1/number?number' in log.get("message")]
-            for log in reversed(logs):
-                message_data = json.loads(log)["message"]
-                body = driver.execute_cdp_cmd('Network.getResponseBody',
-                                              {'requestId': message_data["params"]["requestId"]})
-                code = ''.join([x for x in body['body'] if x.isdigit()])
-        except WebDriverException:
-            time.sleep(1)
-            continue
-        if not code:
-            raise Exception("No se encontró el código de confirmación del teléfono.\n"
-                            "Utiliza 'retrieve_phone_code' solo después de haber solicitado el código en tu aplicación.")
-        return code
 
 
 class UrbanRoutesPage:
@@ -99,7 +74,7 @@ class UrbanRoutesPage:
         self.driver.find_element(*self.click_submit_button).click()
 
     def fill_phone_code(self):
-        code = retrieve_phone_code(self.driver)
+        code = helpers.retrieve_phone_code(self.driver)
         self.driver.find_element(*self.phone_code_field).send_keys(code)
         self.driver.find_element(*self.phone_confirm).click()
 
@@ -164,24 +139,37 @@ class TestUrbanRoutes:
 
     def test_set_route(self):
         self.driver.get(data.urban_routes_url)
-        routes_page = UrbanRoutesPage(self.driver)
+        self.routes_page = UrbanRoutesPage(self.driver)
         address_from = data.address_from
         address_to = data.address_to
-        routes_page.set_route(address_from, address_to)
-        assert routes_page.get_from() == address_from
-        assert routes_page.get_to() == address_to
-        routes_page.order_taxi()
-        routes_page.select_comfort()
-        routes_page.fill_phone_number(data.phone_number)
-        routes_page.fill_phone_code()
-        routes_page.add_credit_card(data.card_number)
-        routes_page.add_credit_card_code(data.card_code)
-        routes_page.write_message(data.message_for_driver)
-        routes_page.request_blanket_and_napkins()
-        routes_page.order_ice_cream(2)
-        routes_page.submit()
-        routes_page.wait_searching_modal()
-        routes_page.wait_driver_info()
+        self.routes_page.set_route(address_from, address_to)
+        assert self.routes_page.get_from() == address_from
+        assert self.routes_page.get_to() == address_to
+    def test_select_comfort(self):
+        self.routes_page.order_taxi()
+        self.routes_page.select_comfort()
+        comfort_element=  self.driver.find_element(*self.routes_page.select_comfort())
+        assert comfort_element.is_displayed()
+    def test_fill_phone_number(self):
+        self.routes_page.fill_phone_number(data.phone_number)
+        self.routes_page.fill_phone_code()
+    def test_fill_phone_code(self):
+        self.routes_page.add_credit_card(data.card_number)
+        self.routes_page.add_credit_card_code(data.card_code)
+    def write_message(self, message_for_driver):
+        self.routes_page.write_message(data.message_for_driver)
+    def request_blanket_and_napkins(self):
+        self.routes_page.request_blanket_and_napkins()
+        checkbox=self.driver.find_element(*self.routes_page.blanket_and_napkins_checkbox)
+        assert checkbox.is_selected()
+    def order_ice_cream(self):
+        self.routes_page.order_ice_cream(2)
+        counter=self.driver.find_element(*self.routes_page.order_ice_cream_counter)
+        assert counter.text==2
+    def order_taxi(self):
+        self.routes_page.submit()
+        self.routes_page.wait_searching_modal()
+        self.routes_page.wait_driver_info()
 
     @classmethod
     def teardown_class(cls):
